@@ -87,7 +87,7 @@ jobs:
       - name: Install R dependencies
         run: |
           install.packages(c(
-            "remotes", "boot", "scam", "dplyr", "tidyr", "readr",
+            "remotes", "devtools", "boot", "scam", "dplyr", "tidyr", "readr",
             "ggplot2", "jsonlite", "tibble", "data.table", "curl",
             "rappdirs", "here", "digest", "Matrix"
           ))
