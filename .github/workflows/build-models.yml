@@ -108,11 +108,11 @@ jobs:
           git clone --no-checkout \
             https://${{ secrets.GITHUB_TOKEN }}@github.com/stanstrup/rePredRet-models.git data_repo
           cd data_repo
-          # Only checkout cache files, not all models yet
+          # Only checkout cache files, not all models
           git sparse-checkout set build_cache.rds model_index.csv
           git checkout
-          # Ensure LFS files are pulled
-          git lfs pull
+          # Pull only the build cache file from LFS (not all models)
+          git lfs pull --include="build_cache.rds"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
