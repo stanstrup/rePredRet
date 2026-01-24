@@ -11,7 +11,8 @@ message("║  • With build cache & resume capability                ║")
 message("╚════════════════════════════════════════════════════════╝")
 message("\n")
 
-# Package is installed by CI workflow, no need to load_all()
+# Attach the installed package
+library(rePredRet)
 
 # Load data (cached locally)
 message("Loading RepoRT data...")
