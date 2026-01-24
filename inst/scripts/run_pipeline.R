@@ -11,8 +11,7 @@ message("║  • With build cache & resume capability                ║")
 message("╚════════════════════════════════════════════════════════╝")
 message("\n")
 
-# Load latest code with devtools (skips slow package build)
-devtools::load_all()
+# Package is installed by CI workflow, no need to load_all()
 
 # Load data (cached locally)
 message("Loading RepoRT data...")

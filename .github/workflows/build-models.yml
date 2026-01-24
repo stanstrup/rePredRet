@@ -87,9 +87,9 @@ jobs:
       - name: Install R dependencies
         run: |
           install.packages(c(
-            "remotes", "devtools", "boot", "data.table", "digest", "dplyr",
-            "ggplot2", "jsonlite", "Matrix", "mgcv", "pracma", "purrr",
-            "rappdirs", "readr", "rlang", "tibble", "tidyr", "curl"
+            "remotes", "boot", "data.table", "digest", "dplyr", "future", "furrr",
+            "ggplot2", "htmlwidgets", "jsonlite", "Matrix", "mgcv", "plotly",
+            "pracma", "purrr", "rappdirs", "readr", "rlang", "tibble", "tidyr", "curl"
           ))
         shell: Rscript {0}
 
