@@ -1,34 +1,42 @@
-version: '3.8'
-
+name: github-actions-runner
 services:
-  github-runner:
-    image: ghcr.io/actions/runner:latest
+  worker:
+    image: myoung34/github-runner:latest
     container_name: github-actions-runner
     restart: unless-stopped
 
-    # Automatically load environment variables from .github_runner.env
     env_file:
       - .github_runner.env
 
     environment:
-      # Defaults (can be overridden in .github_runner.env)
-      REPO_URL: ${REPO_URL:-https://github.com/stanstrup/rePredRet}
-      RUNNER_NAME: ${RUNNER_NAME:-docker-runner-1}
-      RUNNER_WORK: /home/runner/work
-      RUNNER_LABELS: ${RUNNER_LABELS:-docker,linux}
+      # Organization-level runner configuration
+      RUNNER_SCOPE: 'org'
+      ORG_NAME: ${ORG_NAME:-stanstrup-metabolomics}
+      RUNNER_NAME_PREFIX: ${RUNNER_NAME_PREFIX:-docker-runner}
+      RUNNER_GROUP: ${RUNNER_GROUP:-default}
+      LABELS: ${LABELS:-docker,linux}
+
+      # Working directories
+      RUNNER_WORKDIR: /tmp/runner/work
+      CONFIGURED_ACTIONS_RUNNER_FILES_DIR: /runner/data
+
+      # Optional settings
       EPHEMERAL: ${EPHEMERAL:-false}
+      DISABLE_AUTO_UPDATE: ${DISABLE_AUTO_UPDATE:-false}
+      
+      DISABLE_AUTOMATIC_DEREGISTRATION: true
+
+    security_opt:
+      - label:disable
 
     volumes:
-      # Mount Docker socket to allow Docker in Docker (dind)
+      # Docker socket for Docker-in-Docker
       - /var/run/docker.sock:/var/run/docker.sock
+      # Runner configuration and state
+      - /mnt/z/docker/config_dirs/github-runner/data:/runner/data
+      # Runner workspace
+      - /mnt/z/docker/config_dirs/github-runner/work:/tmp/runner/work
 
-      # Work directory for actions
-      - runner-work:/home/runner/work
-
-      # Optional: persist runner config between restarts
-      - runner-config:/home/runner/.runner-config
-
-    # Resource limits (adjust based on your system)
     deploy:
       resources:
         limits:
@@ -37,13 +45,3 @@ services:
         reservations:
           cpus: '2'
           memory: 4G
-
-    # Allow privileged mode for Docker operations
-    privileged: true
-
-    # Keep the container running
-    command: bash -c "cd /home/runner && bash /entrypoint.sh"
-
-volumes:
-  runner-work:
-  runner-config:

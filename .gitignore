@@ -20,3 +20,6 @@ website/data/test_data.rds
 # Output files
 *.log
 pipeline_output.log
+
+# Environment files (contain sensitive tokens)
+.github_runner.env

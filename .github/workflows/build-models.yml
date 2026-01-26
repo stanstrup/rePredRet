@@ -38,7 +38,7 @@ jobs:
       - name: Checkout data repository (sparse)
         run: |
           git clone --filter=blob:none --no-checkout \
-            https://github.com/stanstrup/rePredRet-models.git data_repo
+            https://github.com/stanstrup-metabolomics/rePredRet-models.git data_repo
           cd data_repo
           git sparse-checkout set build_cache.rds model_index.csv
           git checkout
@@ -66,8 +66,8 @@ jobs:
   build:
     needs: check-release
     if: needs.check-release.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours max
+    runs-on: [self-hosted, docker, linux]
+    timeout-minutes: 0  # No time limit on self-hosted runner
 
     steps:
       - name: Checkout repository
@@ -106,7 +106,7 @@ jobs:
         run: |
           # Clone with sparse checkout to minimize download
           git clone --no-checkout \
-            https://${{ secrets.GITHUB_TOKEN }}@github.com/stanstrup/rePredRet-models.git data_repo
+            https://${{ secrets.GITHUB_TOKEN }}@github.com/stanstrup-metabolomics/rePredRet-models.git data_repo
           cd data_repo
           # Only checkout cache files, not all models
           git sparse-checkout set build_cache.rds model_index.csv

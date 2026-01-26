@@ -1,6 +1,6 @@
 # Self-Hosted GitHub Actions Runner Setup
 
-This guide sets up a self-hosted GitHub Actions runner using Docker Compose to bypass GitHub's job time limits.
+This guide sets up a self-hosted GitHub Actions runner using Docker Compose with the **myoung34/github-runner** image to bypass GitHub's job time limits.
 
 ## Runner Scope Options
 
@@ -12,44 +12,48 @@ This guide sets up a self-hosted GitHub Actions runner using Docker Compose to b
 
 This is equivalent to **GitLab's group-level runners** - just register once at the organization level and it works everywhere.
 
-## Step 0: Create the Organization
+## Step 0: Prerequisites
 
-1. Go to: https://github.com/organizations/new
-2. Organization name: `stanstrup-metabolomics`
-3. Billing email: (your email)
-4. Organization account: `stanstrup-metabolomics`
-5. This organization will be: `My personal organization`
-6. Click **Create organization**
-7. Choose the **Free** plan
+- Docker and Docker Compose installed
+- Access to `/var/run/docker.sock` on your host
+- GitHub account with organization `stanstrup-metabolomics` (already done)
 
-## Step 1: Get the Runner Token (Organization Level)
+## Step 1: Create a GitHub Personal Access Token (PAT)
 
-1. Go to your **organization settings**: https://github.com/organizations/stanstrup-metabolomics/settings/actions/runners
-   - **NOT** the repository or personal account settings
-   - This makes the runner available to ALL repos in the organization
+This is the easiest authentication method for organization-level runners.
 
-2. Click **New self-hosted runner**
-3. Note the token shown in the `Configure` section (valid for 1 hour)
+1. Go to: https://github.com/settings/tokens
+2. Click **Generate new token** → **Generate new token (classic)**
+3. Give it a name: `github-runner`
+4. Select scopes:
+   - `repo` (full control of private repositories)
+   - `admin:org` (required for organization-level runners)
+   - `workflow` (for workflow control)
+   - `notifications` (optional, for status notifications)
+5. Click **Generate token**
+6. **Copy the token immediately** (you won't see it again!)
 
 ## Step 2: Set Up Environment Variables
 
-Create a `.github_runner.env` file in the rePredRet directory:
+Create a `.github_runner.env` file in the directory where you'll run docker-compose:
 
 ```bash
-# GitHub repository configuration
-REPO_URL=https://github.com/stanstrup/rePredRet
+# GitHub Personal Access Token (with admin:org scope)
+ACCESS_TOKEN=ghp_your_token_here
 
-# Runner token (get from Step 1 - only valid for 1 hour)
-RUNNER_TOKEN=<paste_token_here>
+# Organization name
+ORG_NAME=stanstrup-metabolomics
 
-# Optional: Give the runner a name
-RUNNER_NAME=docker-runner-1
+# Runner configuration
+RUNNER_NAME_PREFIX=docker-runner
+RUNNER_GROUP=default
+LABELS=docker,linux,ubuntu
 
-# Optional: Labels for the runner (comma-separated)
-RUNNER_LABELS=docker,linux,long-jobs
-
-# Optional: Make runner ephemeral (auto-removes after job)
+# Optional: Make runner ephemeral (auto-removes after each job)
 EPHEMERAL=false
+
+# Optional: Disable auto-update (useful in restricted environments)
+DISABLE_AUTO_UPDATE=false
 ```
 
 **Note**: The `github_runner.yml` automatically loads `.github_runner.env` - no need to pass `--env-file` in the command!
@@ -57,140 +61,155 @@ EPHEMERAL=false
 ## Step 3: Start the Runner
 
 ```bash
-# Navigate to rePredRet directory
-cd /path/to/rePredRet
+# Navigate to the directory with github_runner.yml and .github_runner.env
+cd /mnt/z/docker/compose
 
 # Start the runner with docker-compose (automatically loads .github_runner.env)
-docker-compose -f github_runner.yml up -d
+docker-compose --file github_runner.yml up -d
 
-# Check logs
-docker-compose -f github_runner.yml logs -f github-runner
+# Check logs (should show "Listening for Jobs")
+docker-compose --file github_runner.yml logs -f github-runner
+```
+
+**Expected output:**
+```
+github-runner    | Current runner version: '2.x.x'
+github-runner    | Listening for Jobs
 ```
 
 ## Step 4: Verify the Runner is Online
 
 1. Go to https://github.com/organizations/stanstrup-metabolomics/settings/actions/runners
 2. You should see your runner with a green dot (online)
-3. This runner will now be available to ALL repos in the `stanstrup-metabolomics` organization
+3. The runner is now available to ALL repos in the `stanstrup-metabolomics` organization
 
-## Step 5 (Optional): Transfer Repos to Organization
+## Step 5: Update Workflows to Use Your Runner
 
-To use the runner with your repositories, you can either:
+Your repositories (rePredRet and rePredRet-models) are already in the organization.
 
-**Option A: Transfer repos to the organization** (recommended)
-1. Go to rePredRet repo: https://github.com/stanstrup/rePredRet/settings
-2. Scroll down to "Transfer ownership"
-3. Select `stanstrup-metabolomics` organization
-4. Confirm transfer
-
-Repeat for any other repos you want to use with this runner.
-
-**Option B: Keep repos personal, grant access**
-- You can grant the organization access to personal repos if you prefer
-
-## Step 6: Update Workflows to Use Your Runner
-
-In **any repository in the `stanstrup-metabolomics` organization**, edit `.github/workflows/build-models.yml`:
+Edit `.github/workflows/build-models.yml` in rePredRet and change:
 
 ```yaml
 jobs:
   build:
-    # Change from 'ubuntu-latest' to use your self-hosted runner
-    runs-on: [self-hosted, docker, long-jobs]
-```
-
-Or use the runner name directly:
-
-```yaml
-    runs-on: docker-runner-1
+    # Change from: runs-on: ubuntu-latest
+    runs-on: [self-hosted, docker, linux]
 ```
 
 The same runner handles jobs from **all repos in the organization**. This is equivalent to GitLab's group-level runners!
 
-## Step 7: Test the Workflow
+## Step 6: Test the Workflow
 
-Push a test commit to trigger the workflow, or manually trigger it from:
-https://github.com/stanstrup-metabolomics/rePredRet/actions
+1. Push a test commit to trigger the workflow, or
+2. Go to: https://github.com/stanstrup-metabolomics/rePredRet/actions
+3. Click **Run workflow**
+
+You should see the job run on your self-hosted runner with no time limit!
 
 ## Troubleshooting
 
-### Runner stuck in offline/stale state
+### "Listening for Jobs" not appearing in logs
 ```bash
-# Stop and remove the runner
-docker-compose -f github_runner.yml down
+# Check if token is valid
+docker-compose --file github_runner.yml logs github-runner | grep -i error
 
-# Remove the container completely
-docker rm github-actions-runner
+# Re-create runner with new token
+docker-compose --file github_runner.yml down
+# Update .github_runner.env with new PAT
+docker-compose --file github_runner.yml up -d
+```
 
-# Get a new token and start again
+### Runner not appearing in GitHub UI
+- Verify token is valid (hasn't expired)
+- Check ORG_NAME matches exactly: `stanstrup-metabolomics`
+- Verify token has correct scopes: `repo`, `admin:org`, `workflow`, and `notifications`
+- Check logs for authentication errors
+
+### Docker socket permission denied
+```bash
+# Check socket permissions
+ls -la /var/run/docker.sock
+
+# If not readable, add current user to docker group
+sudo usermod -aG docker $USER
 ```
 
 ### Check runner logs
 ```bash
-docker-compose -f github_runner.yml logs -f github-runner
+# Real-time logs
+docker-compose --file github_runner.yml logs -f github-runner
+
+# Search for specific messages
+docker-compose --file github_runner.yml logs | grep -i "registered\|listening\|error"
 ```
 
 ### Runner needs more resources
-Edit `github_runner.yml` and increase the resource limits:
+Edit `github_runner.yml` and increase resource limits:
 ```yaml
 deploy:
   resources:
     limits:
-      cpus: '8'      # Change from 4 to 8
-      memory: 16G    # Change from 8G to 16G
+      cpus: '8'
+      memory: 16G
+    reservations:
+      cpus: '4'
+      memory: 8G
 ```
 
-### Docker in Docker issues
-Make sure the Docker socket is properly mounted:
+Then restart:
 ```bash
-ls -la /var/run/docker.sock
-```
-
-Should output something like:
-```
-srw-rw---- 1 root docker /var/run/docker.sock
+docker-compose --file github_runner.yml restart
 ```
 
 ## Removing the Runner
 
 1. Stop the Docker container:
 ```bash
-docker-compose -f github_runner.yml down
+docker-compose --file github_runner.yml down
 ```
 
-2. Go to https://github.com/organizations/stanstrup-metabolomics/settings/actions/runners
-3. Click the three dots next to your runner and select "Remove"
+2. (Optional) Remove the volume:
+```bash
+docker volume rm runner-work
+```
 
-Note: This removes the runner from ALL repos in the `stanstrup-metabolomics` organization
+3. Go to https://github.com/organizations/stanstrup-metabolomics/settings/actions/runners
+4. Click the three dots next to your runner and select "Remove"
 
 ## Running Multiple Runners (Advanced)
 
-If you want to run multiple jobs in parallel, you can register multiple runners at the organization level:
+To run multiple runners for parallel job execution:
 
 ```bash
-# Start runner 1 (uses .github_runner.env by default)
-docker-compose -f github_runner.yml up -d
+# Create separate compose files for each runner
+cp github_runner.yml github_runner_2.yml
 
-# Start runner 2 with a different config file
-# First create .github_runner2.env with a different token and name
-# Then override the env_file for this instance:
-docker-compose -f github_runner.yml --env-file .github_runner2.env -p runner2 up -d
+# Create separate env files
+cp .github_runner.env .github_runner_2.env
+
+# Edit .github_runner_2.env and update:
+# - RUNNER_NAME_PREFIX=docker-runner-2
+# - Optionally use different directory: /mnt/z/docker/config_dirs/github-runner-2
 ```
 
-For each runner:
-1. Get a NEW token from https://github.com/organizations/stanstrup-metabolomics/settings/actions/runners
-2. Create a new `.github_runner2.env`, `.github_runner3.env`, etc.
-3. Give each a different `RUNNER_NAME` (e.g., docker-runner-1, docker-runner-2)
-4. Start with different project names: default for first, `-p runner2`, `-p runner3`, etc.
+Start both:
+```bash
+docker-compose --file github_runner.yml up -d
+docker-compose --file github_runner_2.yml -p runner2 up -d
+```
 
-Then all runners are available at the organization level and can handle jobs from all repos in parallel!
+Each runner will be available to the organization and can handle jobs in parallel.
 
 ## Notes
 
-- **Organization name**: `stanstrup-metabolomics` - use this in all organization URLs and when granting access
-- **Token expiration**: Runner tokens expire after 1 hour. If your runner can't register, get a new token.
-- **Persistent runner**: Set `EPHEMERAL=false` to keep the runner available for multiple jobs (recommended)
-- **Ephemeral runner**: Set `EPHEMERAL=true` to auto-remove the runner after each job (more secure, needs re-registration)
-- **Resource limits**: Adjust `cpus` and `memory` in `github_runner.yml` based on your machine's capacity
-- **Docker socket**: The runner needs access to Docker to build/run containers in workflow steps
-- **Free plan**: The organization is on GitHub's free plan, which includes unlimited runners
+- **Docker Image**: `myoung34/github-runner` - actively maintained community image from myoung34
+- **Authentication**: Use GitHub Personal Access Token (PAT) with scopes: `repo`, `admin:org`, `workflow`, `notifications`
+- **Organization**: `stanstrup-metabolomics` - all runners serve all repos in this org
+- **Scope**: `RUNNER_SCOPE: 'org'` makes this runner available to all organization repositories
+- **Persistent mode**: `EPHEMERAL=false` (default) - runner stays online for multiple jobs
+- **Ephemeral mode**: `EPHEMERAL=true` - runner auto-removes after each job (more secure)
+- **Storage**: `/mnt/z/docker/config_dirs/github-runner` - persistent configuration and workspace
+- **Resource limits**: Adjust based on your system capacity in `github_runner.yml`
+- **Docker-in-Docker**: Runner can build and run containers via mounted docker.sock
+- **No time limits**: Self-hosted runners have no job duration limits (unlike GitHub's 6-hour limit)
+- **Cost**: Free with GitHub Free plan - unlimited runners, only pay for your infrastructure
