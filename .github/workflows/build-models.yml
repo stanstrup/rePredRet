@@ -67,7 +67,7 @@ jobs:
     needs: check-release
     if: needs.check-release.outputs.should_run == 'true'
     runs-on: [self-hosted, docker, linux]
-    timeout-minutes: 600  # 10 hours
+    timeout-minutes: 1440  # 24 hours
 
     steps:
       - name: Checkout repository
