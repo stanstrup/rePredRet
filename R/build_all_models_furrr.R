@@ -91,13 +91,6 @@ build_all_models_furrr <- function(report_data,
       id1 <- dataset_ids[i]
       id2 <- dataset_ids[j]
 
-      # Skip if both datasets unchanged (caching)
-      if (!is.null(cache) && !is.null(changes)) {
-        if (id1 %in% changes$unchanged_ids && id2 %in% changes$unchanged_ids) {
-          next
-        }
-      }
-
       rt_matrix <- get_common_compounds(datasets[[id1]], datasets[[id2]])
 
       if (nrow(rt_matrix) < min_compounds) {
@@ -114,6 +107,34 @@ build_all_models_furrr <- function(report_data,
 
   if (verbose) {
     message("Building ", length(model_pairs), " models with ", n_workers, " workers...")
+  }
+
+  # Handle case where no models meet criteria
+  if (length(model_pairs) == 0) {
+    if (verbose) {
+      message("No models meet the criteria (min_compounds=", min_compounds, ")\n")
+    }
+
+    index_df <- data.frame(
+      sys1_id = character(),
+      sys2_id = character(),
+      n_compounds = integer(),
+      median_ci_width = numeric(),
+      median_error = numeric(),
+      stringsAsFactors = FALSE
+    )
+
+    stats <- list(
+      total_pairs = 0,
+      successful = 0,
+      success_rate = 0
+    )
+
+    return(list(
+      models = structure(list(), class = "model_list"),
+      index = index_df,
+      stats = stats
+    ))
   }
 
   # Set batch size (how many models to send to each worker at once)
