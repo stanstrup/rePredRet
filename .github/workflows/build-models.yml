@@ -150,6 +150,9 @@ jobs:
         run: |
           cd data_repo
 
+          # Disable sparse-checkout to allow adding all files
+          git sparse-checkout disable
+
           # Copy new/updated models
           echo "Copying updated models..."
           rsync -av --delete ../website/data/models/ models/
