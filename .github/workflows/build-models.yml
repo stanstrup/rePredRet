@@ -108,10 +108,37 @@ jobs:
 
       - name: Checkout data repository (for build cache)
         run: |
-          # Clone with sparse checkout to minimize download
-          GIT_LFS_SKIP_SMUDGE=1 git clone --no-checkout \
-            https://${{ secrets.GITHUB_TOKEN }}@github.com/stanstrup-metabolomics/rePredRet-models.git data_repo
+          # Clone with retry logic to handle transient network/corruption issues
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Clone attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+
+            # Clean up any partial clone from previous attempt
+            rm -rf data_repo
+
+            # Clone with sparse checkout to minimize download
+            if GIT_LFS_SKIP_SMUDGE=1 git clone --no-checkout --depth=1 \
+              https://${{ secrets.GITHUB_TOKEN }}@github.com/stanstrup-metabolomics/rePredRet-models.git data_repo; then
+              echo "Clone successful"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Clone failed, retrying in 10 seconds..."
+                sleep 10
+              else
+                echo "Clone failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
           cd data_repo
+          # Unshallow the repository to get full history for proper git operations
+          git fetch --unshallow || true
+
           # Only checkout cache files, not all models
           git sparse-checkout set build_cache.rds model_index.csv
           git checkout
@@ -119,10 +146,6 @@ jobs:
           git lfs pull --include="build_cache.rds"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Cleanup to prevent pack corruption
-          cd ..
-          rm -rf data_repo/.git/objects/pack
-          git -C data_repo gc --aggressive --prune=now || true
 
       - name: Copy existing build cache
         run: |
